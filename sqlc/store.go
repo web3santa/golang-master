@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"errors"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -71,7 +70,6 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferParams) (Transfe
 		if err != nil {
 			return err
 		}
-
 		result.FromEntry, err = q.CreateEntries(ctx, CreateEntriesParams{
 			AccountID: arg.FromAccoundId,
 			Amount:    -arg.Amount,
@@ -79,7 +77,6 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferParams) (Transfe
 		if err != nil {
 			return err
 		}
-
 		result.ToEntry, err = q.CreateEntries(ctx, CreateEntriesParams{
 			AccountID: arg.ToAccountId,
 			Amount:    arg.Amount,
@@ -88,35 +85,19 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferParams) (Transfe
 			return err
 		}
 
-		// TODO update accounts 'balance
-
-		// 검사: 계정의 잔액이 음수가 되지 않도록 함
-		fromAccount, err := q.GetAccount(ctx, arg.FromAccoundId)
-		if err != nil {
-			return err
-		}
-		if fromAccount.Balance-arg.Amount <= 0 {
-			return errors.New("insufficient funds")
-		}
-
-		toAccount, err := q.GetAccount(ctx, arg.ToAccountId)
-		if err != nil {
-			return err
-		}
-
-		_, err = q.UpdateAccount(
-			ctx, UpdateAccountParams{
-				ID:      arg.FromAccoundId,
-				Balance: fromAccount.Balance - arg.Amount,
+		_, err = q.AddAccountBalance(
+			ctx, AddAccountBalanceParams{
+				ID:     arg.FromAccoundId,
+				Amount: -arg.Amount,
 			})
 		if err != nil {
 			return err
 		}
 
-		_, err = q.UpdateAccount(
-			ctx, UpdateAccountParams{
-				ID:      arg.ToAccountId,
-				Balance: toAccount.Balance + arg.Amount,
+		_, err = q.AddAccountBalance(
+			ctx, AddAccountBalanceParams{
+				ID:     arg.ToAccountId,
+				Amount: arg.Amount,
 			})
 		if err != nil {
 			return err
@@ -124,6 +105,7 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferParams) (Transfe
 
 		return nil
 	})
+
 	if err != nil {
 		return TransferTxResult{}, err
 	}
